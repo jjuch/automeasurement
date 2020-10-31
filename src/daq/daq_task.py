@@ -1,11 +1,73 @@
 import nidaqmx as ndm
-from nidaqmx.constants import (AccelUnits, AccelSensitivityUnits, AcquisitionType, ExcitationDCorAC, ExcitationSource, ForceIEPESensorSensitivityUnits, ForceUnits, TerminalConfiguration, UsageTypeAI)
+from nidaqmx.constants import AcquisitionType
+
 import matplotlib.pyplot as plt
-from automeasurement.config.sensor import IEPE_Force_sensor, Acceleration_sensor
+import numpy as np
+import itertools
+
+from config.sensor import IEPE_Force_sensor, Acceleration_sensor
 
 class DAQTask():
     def __init__(self):
         self.task = ndm.task.Task()
+        self.verbose = False
+
+    def read_data(self, fs, measurement_time, plot=False, verbose=False):
+        # Adapt object specific parameters
+        self.verbose = verbose
+
+        # Determine time-axis
+        number_of_samples_per_channel = fs * measurement_time
+        time_axis = np.linspace(0, measurement_time, number_of_samples_per_channel)
+        number_of_channels = self.task.number_of_channels
+        if number_of_channels is not 1:
+            time_axis = list(itertools.repeat(time_axis, number_of_channels))
+            time_axis = self.transpose_list_of_lists(time_axis)
+
+        # Set DAQ timing
+        self.task.timing.cfg_samp_clk_timing(rate=fs, sample_mode=AcquisitionType.FINITE, samps_per_chan=number_of_samples_per_channel)
+
+        # Close task when done
+        self.task.register_done_event(self.close_task)
+
+        # Read Data
+        if self.verbose:
+            print('Automeasurement: start reading data.')
+            print('Automeasurement: fs={}Hz, time={}s'.format(fs, measurement_time))
+        self.task.start()
+        data = self.task.read(number_of_samples_per_channel=number_of_samples_per_channel, timeout=measurement_time * 1.2)
+        if number_of_channels > 1:
+            data = self.transpose_list_of_lists(data)
+        
+        if self.verbose:
+            print('Automeasurement: Measurement completed.')
+        
+        # Simple plot of measured data
+        if plot:
+            plt.figure()
+            plt.plot(time_axis, data)
+            plt.xlabel('time (s)')
+            plt.show()
+
+        # Reset verbose
+        self.verbose = False
+
+    def close_task(self, task_handle, status, callback_data):
+        if self.verbose:
+            print('Automeasurement: Closing task.')
+        self.task.close()
+        if self.verbose:
+            print("""
+            Report
+            ======
+            task_handle: {}\n
+            status: {}\n
+            callback_data: {}
+            """.format(task_handle, status, callback_data))
+        return 0
+
+    def transpose_list_of_lists(self, list_of_lists):
+        return list(map(list, zip(*list_of_lists)))
 
 
 class DAQForceTask(DAQTask):
@@ -20,7 +82,6 @@ class DAQForceTask(DAQTask):
             sensitivity_units=IEPE_Force_sensor['sensitivity_units'],
             current_excit_source=IEPE_Force_sensor['current_excit_source'],
             current_excit_val=IEPE_Force_sensor['current_excit_val'])
-        self.task.timing.cfg_samp_clk_timing(1000, sample_mode=AcquisitionType.CONTINUOUS)
         # print(self.task.channels.ai_meas_type)
 
 
@@ -41,13 +102,15 @@ class DAQAccelerationTask(DAQTask):
 
 if __name__ == "__main__":
     # task = DAQTask('cDAQ1/ai0:3')
-    daq = DAQTask('cDAQ1Mod1/ai0')
-    daq.task.start()
-    plt.figure()
-    for _ in range(1000):
-        data = daq.task.read(1500)
-        print(data)
-        plt.plot(data)
-        plt.pause(0.05)
-    plt.show()
-    daq.task.stop()
+    daq = DAQForceTask('cDAQ1Mod1/ai0:1')
+    # daq.task.start()
+    # plt.figure()
+    # for _ in range(100):
+    #     data = daq.task.read(1500)
+    #     print(data)
+    #     plt.plot(data)
+    #     plt.pause(0.05)
+    # plt.show()
+    # daq.task.stop()
+    # daq.task.start()
+    daq.read_data(2000, 30, plot=True, verbose=True)
