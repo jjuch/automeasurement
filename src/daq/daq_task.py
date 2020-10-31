@@ -4,6 +4,7 @@ from nidaqmx.constants import AcquisitionType
 import matplotlib.pyplot as plt
 import numpy as np
 import itertools
+from time import strftime, localtime
 
 from config.sensor import IEPE_Force_sensor, Acceleration_sensor
 
@@ -11,6 +12,9 @@ class DAQTask():
     def __init__(self):
         self.task = ndm.task.Task()
         self.verbose = False
+        self.timestamp = strftime("%Y%m%d_%H%M%S", localtime())
+        self.time_axis = []
+        self.data = []
 
     def read_data(self, fs, measurement_time, plot=False, verbose=False):
         # Adapt object specific parameters
@@ -23,6 +27,7 @@ class DAQTask():
         if number_of_channels is not 1:
             time_axis = list(itertools.repeat(time_axis, number_of_channels))
             time_axis = self.transpose_list_of_lists(time_axis)
+        self.time_axis = time_axis
 
         # Set DAQ timing
         self.task.timing.cfg_samp_clk_timing(rate=fs, sample_mode=AcquisitionType.FINITE, samps_per_chan=number_of_samples_per_channel)
@@ -38,6 +43,7 @@ class DAQTask():
         data = self.task.read(number_of_samples_per_channel=number_of_samples_per_channel, timeout=measurement_time * 1.2)
         if number_of_channels > 1:
             data = self.transpose_list_of_lists(data)
+        self.data = data
         
         if self.verbose:
             print('Automeasurement: Measurement completed.')
@@ -45,7 +51,7 @@ class DAQTask():
         # Simple plot of measured data
         if plot:
             plt.figure()
-            plt.plot(time_axis, data)
+            plt.plot(self.time_axis, self.data)
             plt.xlabel('time (s)')
             plt.show()
 
@@ -66,7 +72,22 @@ class DAQTask():
             """.format(task_handle, status, callback_data))
         return 0
 
+
+    def export_data(self, path):
+        pass
+
+
     def transpose_list_of_lists(self, list_of_lists):
+        """
+        Transpose a list of lists.
+
+        Example:
+        --------
+            >>> in = [[1, 2, 3], [4, 5, 6], [7, 8, 9]]
+            >>> out = transpose_list_of_lists(in)
+            >>> print(out)
+                [[1, 4, 7], [2, 5, 8], [3, 6, 9]]
+        """
         return list(map(list, zip(*list_of_lists)))
 
 
