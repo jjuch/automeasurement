@@ -5,22 +5,26 @@ from nidaqmx.errors import *
 import matplotlib.pyplot as plt
 import numpy as np
 import itertools
-from time import strftime, localtime
+from time import strftime, localtime, sleep
 import sys
 import warnings, traceback
 
 from config.sensor import IEPE_Force_sensor, Acceleration_sensor
+import config.mail as email_cfg
+from src.mail import setup_mail_client
 
 class DAQTask():
-    def __init__(self):
+    def __init__(self, mail_client=None):
         self.task = ndm.task.Task()
         self.verbose = False
         self.timestamp = strftime("%Y%m%d_%H%M%S", localtime())
         self.time_axis = []
         self.data = []
         self.error_msg = None
+        if mail_client is None:
+            self.mail_client = setup_mail_client() 
 
-    def read_data(self, fs: float, measurement_time: float, plot: bool=False, verbose=False) -> bool:
+    def read_data(self, fs: float, measurement_time: float, plot: bool=False, verbose=False, attempts=1, current_attempt=1, email: bool=False) -> bool:
         """
         Read data from task with a certain sampling frequency fs and a finite measurement time. Once finished the task is closed. A bool on successful execution is returned. A 'plot' and 'verbose' boolean are provided.
         """
@@ -44,12 +48,21 @@ class DAQTask():
             # Close task when done
             self.task.register_done_event(self.close_task)
 
-            # Read Data
+            # Print verbose info about measurement
             if self.verbose:
-                print('Automeasurement: start reading data.')
+                print('Automeasurement: start reading data. Attempt: {}/{}'.format(current_attempt, attempts))
                 print('Automeasurement: fs={}Hz, time={}s'.format(fs, measurement_time))
+            
+            # Remove transient from internal source
+            sleep(2)
+
+            # Testing except structure
+            # if current_attempt < attempts:
+            #     raise DaqError('Test Error', 100)
             # raise DaqError('Test Error', 100)
-            raise TypeError
+            # raise TypeError
+
+            # The actual reading of the device
             self.task.start()
             data = self.task.read(number_of_samples_per_channel=number_of_samples_per_channel, timeout=measurement_time * 1.2)
             if number_of_channels > 1:
@@ -59,33 +72,49 @@ class DAQTask():
         # DAQ related errors
         except DaqError as e:
             self.error_msg = traceback.format_exc()
-            print("===================")
-            print("DAQ related error: ")
-            print("===================")
+            print("=====================================")
+            print("Automeasurement - DAQ related error: ")
+            print("=====================================")
             print(self.error_msg)
-            print("===================")
+            print("=====================================")
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
                 self.task.stop()
-            self.close_task('Measuring error', 'error', None)
-            return False
+            if current_attempt < attempts:
+                # Unregister done event
+                self.task.register_done_event(None)
+
+                # Recursive new attempt
+                recursion_bool = self.read_data(fs, measurement_time, plot=plot, verbose=verbose, attempts=attempts, current_attempt=current_attempt + 1, email=email)
+                return recursion_bool
+            elif current_attempt == attempts:
+                if email:
+                    # Send an e-mail
+                    error_subject = 'NI DAQ failed to measure'
+                    self.mail_client.send_error_email(self.error_msg, error_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
+                self.close_task('Measuring error', 'error', None)
+                return False
 
         # Other Exceptions
         except Exception as e:
             self.error_msg = traceback.format_exc()
-            print("==========")
-            print("Exception:")
-            print("==========")
+            print("============================")
+            print("Automeasurement - Exception:")
+            print("============================")
             print(self.error_msg)
-            print("==========")
+            print("============================")
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
                 self.task.stop()
+            if email:
+                    # Send an e-mail
+                    error_subject = 'Unexpected Exception during reading'
+                    self.mail_client.send_error_email(self.error_msg, error_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
             self.close_task('Measuring error', 'error', None)
             return False
         
         if self.verbose:
-            print('Automeasurement: Measurement completed.')
+            print('Automeasurement: Measurement completed successfully.')
         
         # Simple plot of measured data
         if plot:
@@ -110,6 +139,7 @@ class DAQTask():
             status: {}\n
             callback_data: {}
             """.format(task_handle, status, callback_data))
+        self.mail_client.quit_client()
         return 0
 
 
@@ -174,4 +204,4 @@ if __name__ == "__main__":
     # plt.show()
     # daq.task.stop()
     # daq.task.start()
-    daq.read_data(2000, 30, plot=True, verbose=True)
+    daq.read_data(2000, 30, plot=True, verbose=True, attempts=2, email=True, )
