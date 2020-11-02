@@ -8,9 +8,11 @@ import itertools
 from time import strftime, localtime, sleep
 import sys
 import warnings, traceback
+import csv
 
 from config.sensor import IEPE_Force_sensor, Acceleration_sensor
 import config.mail as email_cfg
+import config.files as files_cfg
 from src.mail import setup_mail_client
 
 class DAQTask():
@@ -61,7 +63,9 @@ class DAQTask():
             #     raise DaqError('Test Error', 100)
             # raise DaqError('Test Error', 100)
             # raise TypeError
-
+            
+            # Create new timestamp
+            self.timestamp = strftime("%Y%m%d_%H%M%S", localtime())
             # The actual reading of the device
             self.task.start()
             data = self.task.read(number_of_samples_per_channel=number_of_samples_per_channel, timeout=measurement_time * 1.2)
@@ -84,7 +88,7 @@ class DAQTask():
                 # Unregister done event
                 self.task.register_done_event(None)
 
-                # Recursive new attempt
+                # Recursive new read attempt
                 recursion_bool = self.read_data(fs, measurement_time, plot=plot, verbose=verbose, attempts=attempts, current_attempt=current_attempt + 1, email=email)
                 return recursion_bool
             elif current_attempt == attempts:
@@ -143,8 +147,40 @@ class DAQTask():
         return 0
 
 
-    def export_data(self, path):
-        pass
+    def export_data(self, delimiter=';', transform=False):
+        """
+        Export data to a csv file. The path is specified in the config/files.py file.
+        The delimiter is by default ';'. The boolean 'transform' converts the data from the decimal point '.' to ','.
+        """
+        # Set path with data name and add '\\' at the end of path
+        if files_cfg.path[-2:-1] == "\\":
+            nameCSV = files_cfg.path + "data_" + self.timestamp + ".csv"
+        else:
+            nameCSV = files_cfg.path + "\\data_" + self.timestamp + ".csv"
+        
+        #Write to CSV
+        with open(nameCSV, 'w', newline='') as csvfile:
+            dataWriter = csv.writer(csvfile, delimiter=';', quotechar='|',quoting=csv.QUOTE_NONE)
+
+            for i in range(len(self.time_axis)):
+                row = []
+                # change '.' into ','
+                for j in range(len(self.time_axis[0])):
+                    if transform:
+                        row.append(self._localizeFloats(self.time_axis[i][j])) 
+                        row.append(self._localizeFloats(self.data[i][j]))
+                    else:
+                        row.append(self.time_axis[i][j])
+                        row.append(self.data[i][j])
+                dataWriter.writerow(row)
+
+                #decimal point: '.'
+                #dataWriter.writerow([self.time_axis[i],self.data[i]])
+            csvfile.close()
+
+    
+    def _localizeFloats(self,el):
+        return str(el).replace('.', ',') if isinstance(el, float) else el
 
 
     def transpose_list_of_lists(self, list_of_lists):
@@ -204,4 +240,5 @@ if __name__ == "__main__":
     # plt.show()
     # daq.task.stop()
     # daq.task.start()
-    daq.read_data(2000, 30, plot=True, verbose=True, attempts=2, email=True, )
+    daq.read_data(100, 5, plot=True, verbose=True, attempts=2, email=True)
+    daq.export_data()
