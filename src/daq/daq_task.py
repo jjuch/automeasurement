@@ -1,10 +1,13 @@
 import nidaqmx as ndm
 from nidaqmx.constants import AcquisitionType
+from nidaqmx.errors import *
 
 import matplotlib.pyplot as plt
 import numpy as np
 import itertools
 from time import strftime, localtime
+import sys
+import warnings, traceback
 
 from config.sensor import IEPE_Force_sensor, Acceleration_sensor
 
@@ -15,8 +18,13 @@ class DAQTask():
         self.timestamp = strftime("%Y%m%d_%H%M%S", localtime())
         self.time_axis = []
         self.data = []
+        self.error_msg = None
 
-    def read_data(self, fs, measurement_time, plot=False, verbose=False):
+    def read_data(self, fs: float, measurement_time: float, plot: bool=False, verbose=False) -> bool:
+        """
+        Read data from task with a certain sampling frequency fs and a finite measurement time. Once finished the task is closed. A bool on successful execution is returned. A 'plot' and 'verbose' boolean are provided.
+        """
+
         # Adapt object specific parameters
         self.verbose = verbose
 
@@ -29,21 +37,52 @@ class DAQTask():
             time_axis = self.transpose_list_of_lists(time_axis)
         self.time_axis = time_axis
 
-        # Set DAQ timing
-        self.task.timing.cfg_samp_clk_timing(rate=fs, sample_mode=AcquisitionType.FINITE, samps_per_chan=number_of_samples_per_channel)
+        try:
+            # Set DAQ timing
+            self.task.timing.cfg_samp_clk_timing(rate=fs, sample_mode=AcquisitionType.FINITE, samps_per_chan=number_of_samples_per_channel)
 
-        # Close task when done
-        self.task.register_done_event(self.close_task)
+            # Close task when done
+            self.task.register_done_event(self.close_task)
 
-        # Read Data
-        if self.verbose:
-            print('Automeasurement: start reading data.')
-            print('Automeasurement: fs={}Hz, time={}s'.format(fs, measurement_time))
-        self.task.start()
-        data = self.task.read(number_of_samples_per_channel=number_of_samples_per_channel, timeout=measurement_time * 1.2)
-        if number_of_channels > 1:
-            data = self.transpose_list_of_lists(data)
-        self.data = data
+            # Read Data
+            if self.verbose:
+                print('Automeasurement: start reading data.')
+                print('Automeasurement: fs={}Hz, time={}s'.format(fs, measurement_time))
+            # raise DaqError('Test Error', 100)
+            raise TypeError
+            self.task.start()
+            data = self.task.read(number_of_samples_per_channel=number_of_samples_per_channel, timeout=measurement_time * 1.2)
+            if number_of_channels > 1:
+                data = self.transpose_list_of_lists(data)
+            self.data = data
+
+        # DAQ related errors
+        except DaqError as e:
+            self.error_msg = traceback.format_exc()
+            print("===================")
+            print("DAQ related error: ")
+            print("===================")
+            print(self.error_msg)
+            print("===================")
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                self.task.stop()
+            self.close_task('Measuring error', 'error', None)
+            return False
+
+        # Other Exceptions
+        except Exception as e:
+            self.error_msg = traceback.format_exc()
+            print("==========")
+            print("Exception:")
+            print("==========")
+            print(self.error_msg)
+            print("==========")
+            with warnings.catch_warnings():
+                warnings.simplefilter('ignore')
+                self.task.stop()
+            self.close_task('Measuring error', 'error', None)
+            return False
         
         if self.verbose:
             print('Automeasurement: Measurement completed.')
@@ -57,6 +96,7 @@ class DAQTask():
 
         # Reset verbose
         self.verbose = False
+        return True
 
     def close_task(self, task_handle, status, callback_data):
         if self.verbose:
