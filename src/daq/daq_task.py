@@ -6,7 +6,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 import itertools
 from time import strftime, localtime, sleep
-import sys
+import sys, os
 import warnings, traceback
 import csv
 
@@ -152,31 +152,40 @@ class DAQTask():
         Export data to a csv file. The path is specified in the config/files.py file.
         The delimiter is by default ';'. The boolean 'transform' converts the data from the decimal point '.' to ','.
         """
-        # Set path with data name and add '\\' at the end of path
-        if files_cfg.path[-2:-1] == "\\":
-            nameCSV = files_cfg.path + "data_" + self.timestamp + ".csv"
-        else:
-            nameCSV = files_cfg.path + "\\data_" + self.timestamp + ".csv"
+        correct_path = files_cfg.path
+        if files_cfg.path[-2:-1] != "\\":
+            correct_path = correct_path + "\\"
         
-        #Write to CSV
-        with open(nameCSV, 'w', newline='') as csvfile:
-            dataWriter = csv.writer(csvfile, delimiter=';', quotechar='|',quoting=csv.QUOTE_NONE)
+        # Check if path exists
+        if not os.path.exists(correct_path + 'data'):
+            os.makedirs(correct_path + 'data')
 
-            for i in range(len(self.time_axis)):
-                row = []
-                # change '.' into ','
-                for j in range(len(self.time_axis[0])):
-                    if transform:
-                        row.append(self._localizeFloats(self.time_axis[i][j])) 
-                        row.append(self._localizeFloats(self.data[i][j]))
-                    else:
-                        row.append(self.time_axis[i][j])
-                        row.append(self.data[i][j])
-                dataWriter.writerow(row)
+        # Set path with data name
+        nameCSV = correct_path + "data\\data_" + self.timestamp + ".csv"
+        
+        try:
+            #Write to CSV
+            with open(nameCSV, 'w', newline='') as csvfile:
+                dataWriter = csv.writer(csvfile, delimiter=';', quotechar='|',quoting=csv.QUOTE_NONE)
 
-                #decimal point: '.'
-                #dataWriter.writerow([self.time_axis[i],self.data[i]])
-            csvfile.close()
+                for i in range(len(self.time_axis)):
+                    row = []
+                    # change '.' into ','
+                    for j in range(len(self.time_axis[0])):
+                        if transform:
+                            row.append(self._localizeFloats(self.time_axis[i][j])) 
+                            row.append(self._localizeFloats(self.data[i][j]))
+                        else:
+                            row.append(self.time_axis[i][j])
+                            row.append(self.data[i][j])
+                    dataWriter.writerow(row)
+
+                    #decimal point: '.'
+                    #dataWriter.writerow([self.time_axis[i],self.data[i]])
+                csvfile.close()
+        except FileNotFoundError:
+            print("Automeasurement: The path in the config/files.py does not exist. Please provide an existing path.")
+
 
     
     def _localizeFloats(self,el):
