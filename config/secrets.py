@@ -1,8 +1,7 @@
-# User specific parameters
-email_from = 'example@example.com'
-email_to = ['example1@example.com', 'example2@example.com']
-password = 'my_password'
+# Email client login
+user = "your_username"
+password = "your_password"
 
 # Email parameters
-host = 'my_host_name'
+host = "host@address.com"
 port = 123
