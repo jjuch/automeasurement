@@ -249,5 +249,6 @@ if __name__ == "__main__":
     # plt.show()
     # daq.task.stop()
     # daq.task.start()
-    daq.read_data(100, 5, plot=True, verbose=True, attempts=2, email=True)
-    daq.export_data()
+    success = daq.read_data(100, 5, plot=True, verbose=True, attempts=2, email=True)
+    if success:
+        daq.export_data()
