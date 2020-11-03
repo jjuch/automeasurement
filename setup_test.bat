@@ -1,2 +1,0 @@
-call C:/Users/jjuchem/Documents/PhD/Services/stick_slip/automeasurement/ENV/Scripts/activate.bat
-C:\Users\jjuchem\Documents\PhD\Services\stick_slip\automeasurement\ENV\Scripts\python.exe C:/Users/jjuchem/Documents/PhD/Services/stick_slip/automeasurement/main.py
