@@ -238,7 +238,8 @@ class DAQAccelerationTask(DAQTask):
 
 if __name__ == "__main__":
     # task = DAQTask('cDAQ1/ai0:3')
-    daq = DAQForceTask('cDAQ1Mod1/ai0:1')
+    # daq = DAQForceTask('cDAQ1Mod1/ai0:1')
+    daq = DAQAccelerationTask('cDAQ1Mod1/ai0:3')
     # daq.task.start()
     # plt.figure()
     # for _ in range(100):
@@ -249,6 +250,6 @@ if __name__ == "__main__":
     # plt.show()
     # daq.task.stop()
     # daq.task.start()
-    success = daq.read_data(100, 5, plot=True, verbose=True, attempts=2, email=True)
+    success = daq.read_data(2000, 5, plot=False, verbose=True, attempts=2, email=True)
     if success:
         daq.export_data()

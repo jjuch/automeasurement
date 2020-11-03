@@ -1,5 +1,7 @@
 #!/bin/bash
 
+cd C:/Users/jjuchem/Documents/PhD/Services/stick_slip/automeasurement
+
 # Path to virtual environment activation script
 activate_path='ENV/Scripts/activate'
 #TODO: Check if path exists, if not create

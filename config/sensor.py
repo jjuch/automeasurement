@@ -18,7 +18,7 @@ Acceleration_sensor = {
     'min_val' : -30,
     'max_val' : 30,
     'units' : AccelUnits.G,
-    'sensitivity' : 1000,
+    'sensitivity' : 100,
     'sensitivity_units' : AccelSensitivityUnits.M_VOLTS_PER_G,
     'current_excit_source' : ExcitationSource.INTERNAL,
     'current_excit_val' : 0.002
