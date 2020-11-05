@@ -147,7 +147,7 @@ class DAQTask():
         return 0
 
 
-    def export_data(self, delimiter=';', transform=False):
+    def export_data(self, delimiter=';', transform=False, email: bool=False):
         """
         Export data to a csv file. The path is specified in the config/files.py file.
         The delimiter is by default ';'. The boolean 'transform' converts the data from the decimal point '.' to ','.
@@ -169,23 +169,36 @@ class DAQTask():
                 with open(nameCSV, 'w', newline='') as csvfile:
                     dataWriter = csv.writer(csvfile, delimiter=';', quotechar='|',quoting=csv.QUOTE_NONE)
 
-                    for i in range(len(self.time_axis)):
-                        row = []
-                        # change '.' into ','
-                        for j in range(len(self.time_axis[0])):
-                            if transform:
-                                row.append(self._localizeFloats(self.time_axis[i][j])) 
-                                row.append(self._localizeFloats(self.data[i][j]))
-                            else:
-                                row.append(self.time_axis[i][j])
-                                row.append(self.data[i][j])
-                        dataWriter.writerow(row)
+                    if self.time_axis is not None:
+                        for i in range(len(self.time_axis)):
+                            row = []
+                            # change '.' into ','
+                            for j in range(len(self.time_axis[0])):
+                                if transform:
+                                    row.append(self._localizeFloats(self.time_axis[i][j])) 
+                                    row.append(self._localizeFloats(self.data[i][j]))
+                                else:
+                                    row.append(self.time_axis[i][j])
+                                    row.append(self.data[i][j])
+                            dataWriter.writerow(row)
 
-                        #decimal point: '.'
-                        #dataWriter.writerow([self.time_axis[i],self.data[i]])
+                        # decimal point: '.'
+                        # dataWriter.writerow([self.time_axis[i],self.data[i]])
                     csvfile.close()
-            except FileNotFoundError:
-                print("Automeasurement: The path in the config/files.py does not exist. Please provide an existing path.")
+            # except FileNotFoundError:
+            #     print("Automeasurement: The path in the config/files.py does not exist. Please provide an existing path.")
+            except Exception as e:
+                self.error_msg = traceback.format_exc()
+                self.error_msg = self.error_msg + "\nPath: {}".format(correct_path)
+                print("============================")
+                print("Automeasurement - Exception:")
+                print("============================")
+                print(self.error_msg)
+                print("============================")
+                if email:
+                        # Send an e-mail
+                        error_subject = 'Unexpected Exception during saving data'
+                        self.mail_client.send_error_email(self.error_msg, error_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
 
 
     
