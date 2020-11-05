@@ -16,20 +16,27 @@ import config.measurement as measurement_cfg
 from src.mail import setup_mail_client
 
 class DAQTask():
-    def __init__(self, mail_client=None, verbose=False):
+    def __init__(self, mail_client=None, verbose=False, send_email=False):
         self.task = ndm.task.Task()
         self.verbose = verbose
         self.timestamp = strftime("%Y%m%d_%H%M%S", localtime())
         self.time_axis = None
         self.data = None
         self.error_msg = None
+        self.send_email = send_email
         if mail_client is None:
-            self.mail_client = setup_mail_client() 
+            try:
+                self.mail_client = setup_mail_client()
+            except Exception as e:
+                print('Automeasurement: Could not create a mail client.')
+                # Allows to keep storing the data if the mail client fails
+                self.mail_client = None
+                self.send_email = False
 
     def __exit__(self, type, value, traceback):
         self.close()
 
-    def read_data(self, fs: float, measurement_time: float, plot: bool=False, verbose=False, attempts=1, current_attempt=1, email: bool=False, close_when_done: bool=True) -> bool:
+    def read_data(self, fs: float, measurement_time: float, plot: bool=False, verbose=False, attempts=1, current_attempt=1, close_when_done: bool=True) -> bool:
         """
         Read data from task with a certain sampling frequency fs and a finite measurement time. Once finished the task is closed. A bool on successful execution is returned. A 'plot' and 'verbose' boolean are provided.
         """
@@ -93,10 +100,10 @@ class DAQTask():
                 self.task.register_done_event(None)
 
                 # Recursive new read attempt
-                recursion_bool = self.read_data(fs, measurement_time, plot=plot, verbose=verbose, attempts=attempts, current_attempt=current_attempt + 1, email=email)
+                recursion_bool = self.read_data(fs, measurement_time, plot=plot, verbose=verbose, attempts=attempts, current_attempt=current_attempt + 1)
                 return recursion_bool
             elif current_attempt == attempts:
-                if email:
+                if self.send_email:
                     # Send an e-mail
                     error_subject = 'NI DAQ failed to measure'
                     self.mail_client.send_error_email(self.error_msg, error_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
@@ -115,7 +122,7 @@ class DAQTask():
             with warnings.catch_warnings():
                 warnings.simplefilter('ignore')
                 self.task.stop()
-            if email:
+            if self.send_email:
                     # Send an e-mail
                     error_subject = 'Unexpected Exception during reading'
                     self.mail_client.send_error_email(self.error_msg, error_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
@@ -167,7 +174,7 @@ class DAQTask():
         self.close_mail_client()
 
 
-    def export_data(self, delimiter=';', transform=False, email: bool=False):
+    def export_data(self, delimiter=';', transform=False):
         """
         Export data to a csv file. The path is specified in the config/files.py file.
         The delimiter is by default ';'. The boolean 'transform' converts the data from the decimal point '.' to ','.
@@ -215,7 +222,7 @@ class DAQTask():
                 print("============================")
                 print(self.error_msg)
                 print("============================")
-                if email:
+                if self.send_email:
                         # Send an e-mail
                         error_subject = 'Unexpected Exception during saving data'
                         self.mail_client.send_error_email(self.error_msg, error_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
@@ -241,8 +248,8 @@ class DAQTask():
 
 
 class DAQForceTask(DAQTask):
-    def __init__(self, channel_names, mail_client=None, verbose=False):
-        super().__init__(mail_client=mail_client, verbose=verbose)
+    def __init__(self, channel_names, mail_client=None, verbose=False, send_email=False):
+        super().__init__(mail_client=mail_client, verbose=verbose, send_email=send_email)
         try:
             self.task.ai_channels.add_ai_force_iepe_chan(channel_names,
                 terminal_config=IEPE_Force_sensor['terminal_config'],
@@ -255,13 +262,22 @@ class DAQForceTask(DAQTask):
                 current_excit_val=IEPE_Force_sensor['current_excit_val'])
             # print(self.task.channels.ai_meas_type)
         except Exception as e:
-            print('Automeasurement: The task could not be created.')
+            self.error_msg = traceback.format_exc()
+            print("============================")
+            print("Automeasurement - Exception:")
+            print("============================")
+            print(self.error_msg)
+            print("============================")
+            if self.send_email:
+                # Send an e-mail
+                error_subject = 'Unexpected Exception during creation of task'
+                self.mail_client.send_error_email(self.error_msg, error_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
             self.close()
 
 
 class DAQAccelerationTask(DAQTask):
-    def __init__(self, channel_names, mail_client=None, verbose=False):
-        super().__init__(mail_client=mail_client, verbose=verbose)
+    def __init__(self, channel_names, mail_client=None, verbose=False, send_email=False):
+        super().__init__(mail_client=mail_client, verbose=verbose, send_email=send_email)
         try:
             self.task.ai_channels.add_ai_accel_chan(channel_names,
                 terminal_config=Acceleration_sensor['terminal_config'],
@@ -273,7 +289,16 @@ class DAQAccelerationTask(DAQTask):
                 current_excit_source=Acceleration_sensor['current_excit_source'],
                 current_excit_val=Acceleration_sensor['current_excit_val'])
         except Exception as e:
-            print('Automeasurement: The task could not be created.')
+            self.error_msg = traceback.format_exc()
+            print("============================")
+            print("Automeasurement - Exception:")
+            print("============================")
+            print(self.error_msg)
+            print("============================")
+            if self.send_email:
+                # Send an e-mail
+                error_subject = 'Unexpected Exception during creation of task'
+                self.mail_client.send_error_email(self.error_msg, error_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
             self.close()
 
 
@@ -281,8 +306,8 @@ class DAQAccelerationTask(DAQTask):
 if __name__ == "__main__":
     # task = DAQTask('cDAQ1/ai0:3')
     # daq = DAQForceTask('cDAQ1Mod1/ai0:1')
-    daq = DAQAccelerationTask('cDAQ1Mod1/ai0:3', verbose=True)
-    # success = daq.read_data(2000, 5, plot=False, verbose=True, attempts=2, email=True)
+    daq = DAQAccelerationTask('cDAQ1Mod1/ai0:3', verbose=True, send_email=True)
+    # success = daq.read_data(2000, 5, plot=False, verbose=True, attempts=2)
     # if success:
     #     daq.export_data()
     # daq.close()
