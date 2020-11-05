@@ -1,5 +1,5 @@
 # Path to the folder where the measurement files should be saved
-path = ["C:\\the\\path\\to\\the\\folder\\where\\to\\save\\"]
+path = ["C:\\the\\path\\to\\the\\folder\\where\\to\\save\\", "C:\\another\\path\\to\\a\\folder\\where\\to\\save\\"]
 
 # Measurement settings
 measurement_frequency = 2000 # Samples per second
