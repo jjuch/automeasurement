@@ -1,12 +1,17 @@
-# from src.mail.mail_client import MailClient
+from src.daq.daq_task import DAQAccelerationTask
 
-# import config.secrets as cfg
-from time import sleep
+import config.measurement as cfg_meas
+import config.sensor as cfg_sensor
 
+# Configure task
+daq = DAQAccelerationTask(cfg_sensor.channel_names, verbose=True, send_email=True)
 
-# mc = MailClient(cfg.host, cfg.port, cfg.user, cfg.password)
-# mc.send_test(cfg.email_from, cfg.email_to, cc_email=cfg.email_cc)
-# mc.quit_client()
-for i in range(10):
-    sleep(2)
-    print('test {}'.format(i))
+# Measure data
+read_success = daq.read_data(cfg_meas.measurement_frequency, cfg_meas.measurement_time, plot=False, attempts=cfg_meas.attempts, close_when_done=False)
+
+# Save data
+if read_success:
+    daq.export_data(cfg_meas.path)
+
+# Close all resources
+daq.close()

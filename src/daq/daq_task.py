@@ -188,7 +188,7 @@ class DAQTask():
         self.close_mail_client()
 
 
-    def export_data(self, delimiter=';', transform=False):
+    def export_data(self, paths: list, delimiter=';', transform=False):
         """
         Export data to a csv file. The path is specified in the config/files.py file.
         The delimiter is by default ';'. The boolean 'transform' converts the data from the decimal point '.' to ','.
@@ -197,10 +197,10 @@ class DAQTask():
         file_name = "data_" + self.timestamp + ".csv"
         msg = "The file with name '{}' has been exported. The following information is given: \n\n".format(file_name)
 
-        for i in range(len(measurement_cfg.path)):
+        for i in range(len(paths)):
             try:
-                correct_path = measurement_cfg.path[i]
-                if measurement_cfg.path[i][-2:-1] != "\\":
+                correct_path = paths[i]
+                if paths[i][-2:-1] != "\\":
                     correct_path = correct_path + "\\"
                 
                 # Check if path exists
@@ -262,8 +262,6 @@ class DAQTask():
                 self.mail_client.send_error_email(error_text, error_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
 
                 
-
-
     
     def _localizeFloats(self,el):
         return str(el).replace('.', ',') if isinstance(el, float) else el
@@ -343,7 +341,7 @@ if __name__ == "__main__":
     # task = DAQTask('cDAQ1/ai0:3')
     # daq = DAQForceTask('cDAQ1Mod1/ai0:1')
     daq = DAQAccelerationTask('cDAQ1Mod1/ai0:3, cDAQ1Mod2/ai0', verbose=True, send_email=True)
-    success = daq.read_data(2000, 90, plot=False, verbose=True, attempts=2, close_when_done=False)
+    success = daq.read_data(2000, 5, plot=False, verbose=True, attempts=2, close_when_done=False)
     if success:
-        daq.export_data()
+        daq.export_data(measurement_cfg.path)
     daq.close()
