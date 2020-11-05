@@ -16,9 +16,9 @@ import config.measurement as measurement_cfg
 from src.mail import setup_mail_client
 
 class DAQTask():
-    def __init__(self, mail_client=None):
+    def __init__(self, mail_client=None, verbose=False):
         self.task = ndm.task.Task()
-        self.verbose = False
+        self.verbose = verbose
         self.timestamp = strftime("%Y%m%d_%H%M%S", localtime())
         self.time_axis = None
         self.data = None
@@ -26,7 +26,10 @@ class DAQTask():
         if mail_client is None:
             self.mail_client = setup_mail_client() 
 
-    def read_data(self, fs: float, measurement_time: float, plot: bool=False, verbose=False, attempts=1, current_attempt=1, email: bool=False) -> bool:
+    def __exit__(self, type, value, traceback):
+        self.close()
+
+    def read_data(self, fs: float, measurement_time: float, plot: bool=False, verbose=False, attempts=1, current_attempt=1, email: bool=False, close_when_done: bool=True) -> bool:
         """
         Read data from task with a certain sampling frequency fs and a finite measurement time. Once finished the task is closed. A bool on successful execution is returned. A 'plot' and 'verbose' boolean are provided.
         """
@@ -47,8 +50,9 @@ class DAQTask():
             # Set DAQ timing
             self.task.timing.cfg_samp_clk_timing(rate=fs, sample_mode=AcquisitionType.FINITE, samps_per_chan=number_of_samples_per_channel)
 
-            # Close task when done
-            self.task.register_done_event(self.close_task)
+            if close_when_done:
+                # Close task when done
+                self.task.register_done_event(self.close_task)
 
             # Print verbose info about measurement
             if self.verbose:
@@ -96,7 +100,8 @@ class DAQTask():
                     # Send an e-mail
                     error_subject = 'NI DAQ failed to measure'
                     self.mail_client.send_error_email(self.error_msg, error_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
-                self.close_task('Measuring error', 'error', None)
+                if close_when_done:
+                    self.close_task('Measuring error', 'error', None)
                 return False
 
         # Other Exceptions
@@ -114,7 +119,8 @@ class DAQTask():
                     # Send an e-mail
                     error_subject = 'Unexpected Exception during reading'
                     self.mail_client.send_error_email(self.error_msg, error_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
-            self.close_task('Measuring error', 'error', None)
+            if close_when_done:
+                self.close_task('Measuring error', 'error', None)
             return False
         
         if self.verbose:
@@ -143,8 +149,22 @@ class DAQTask():
             status: {}\n
             callback_data: {}
             """.format(task_handle, status, callback_data))
-        self.mail_client.quit_client()
         return 0
+
+    def close_mail_client(self):
+        if self.verbose:
+            print('Automeasurement: Closing mail client.')
+        self.mail_client.quit_client()
+
+    def close(self):
+        if self.verbose:
+            print('Automeasurement: Closing the DAQ Task.')
+
+        # Catch warning that task is already closed.
+        with warnings.catch_warnings():
+            warnings.simplefilter('ignore')
+            self.close_task('closing', 'closing_all', None)
+        self.close_mail_client()
 
 
     def export_data(self, delimiter=';', transform=False, email: bool=False):
@@ -221,39 +241,48 @@ class DAQTask():
 
 
 class DAQForceTask(DAQTask):
-    def __init__(self, channel_names):
-        super().__init__()
-        self.task.ai_channels.add_ai_force_iepe_chan(channel_names,
-            terminal_config=IEPE_Force_sensor['terminal_config'],
-            min_val=IEPE_Force_sensor['min_val'],
-            max_val=IEPE_Force_sensor['max_val'],
-            units=IEPE_Force_sensor['units'],
-            sensitivity=IEPE_Force_sensor['sensitivity'],
-            sensitivity_units=IEPE_Force_sensor['sensitivity_units'],
-            current_excit_source=IEPE_Force_sensor['current_excit_source'],
-            current_excit_val=IEPE_Force_sensor['current_excit_val'])
-        # print(self.task.channels.ai_meas_type)
+    def __init__(self, channel_names, mail_client=None, verbose=False):
+        super().__init__(mail_client=mail_client, verbose=verbose)
+        try:
+            self.task.ai_channels.add_ai_force_iepe_chan(channel_names,
+                terminal_config=IEPE_Force_sensor['terminal_config'],
+                min_val=IEPE_Force_sensor['min_val'],
+                max_val=IEPE_Force_sensor['max_val'],
+                units=IEPE_Force_sensor['units'],
+                sensitivity=IEPE_Force_sensor['sensitivity'],
+                sensitivity_units=IEPE_Force_sensor['sensitivity_units'],
+                current_excit_source=IEPE_Force_sensor['current_excit_source'],
+                current_excit_val=IEPE_Force_sensor['current_excit_val'])
+            # print(self.task.channels.ai_meas_type)
+        except Exception as e:
+            print('Automeasurement: The task could not be created.')
+            self.close()
 
 
 class DAQAccelerationTask(DAQTask):
-    def __init__(self, channel_names):
-        super().__init__()
-        self.task.ai_channels.add_ai_accel_chan(channel_names,
-            terminal_config=Acceleration_sensor['terminal_config'],
-            min_val=Acceleration_sensor['min_val'],
-            max_val= Acceleration_sensor['max_val'],
-            units=Acceleration_sensor['units'],
-            sensitivity=Acceleration_sensor['sensitivity'],
-            sensitivity_units=Acceleration_sensor['sensitivity_units'],
-            current_excit_source=Acceleration_sensor['current_excit_source'],
-            current_excit_val=Acceleration_sensor['current_excit_val'])
+    def __init__(self, channel_names, mail_client=None, verbose=False):
+        super().__init__(mail_client=mail_client, verbose=verbose)
+        try:
+            self.task.ai_channels.add_ai_accel_chan(channel_names,
+                terminal_config=Acceleration_sensor['terminal_config'],
+                min_val=Acceleration_sensor['min_val'],
+                max_val= Acceleration_sensor['max_val'],
+                units=Acceleration_sensor['units'],
+                sensitivity=Acceleration_sensor['sensitivity'],
+                sensitivity_units=Acceleration_sensor['sensitivity_units'],
+                current_excit_source=Acceleration_sensor['current_excit_source'],
+                current_excit_val=Acceleration_sensor['current_excit_val'])
+        except Exception as e:
+            print('Automeasurement: The task could not be created.')
+            self.close()
 
 
 
 if __name__ == "__main__":
     # task = DAQTask('cDAQ1/ai0:3')
     # daq = DAQForceTask('cDAQ1Mod1/ai0:1')
-    daq = DAQAccelerationTask('cDAQ1Mod1/ai0:3')
-    success = daq.read_data(2000, 5, plot=False, verbose=True, attempts=2, email=True)
-    if success:
-        daq.export_data()
+    daq = DAQAccelerationTask('cDAQ1Mod1/ai0:3', verbose=True)
+    # success = daq.read_data(2000, 5, plot=False, verbose=True, attempts=2, email=True)
+    # if success:
+    #     daq.export_data()
+    # daq.close()
