@@ -146,7 +146,7 @@ class DAQTask():
             info_txt = "The standard deviations of the sensors are: \n"
             for i in range(number_of_channels):
                 info_txt = info_txt + "Channel {}: {}\n".format(i + 1, std_dev[i])
-            self.mail_client.send_info_mail(info_txt, info_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
+            self.mail_client.send_info_email(info_txt, info_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
 
         # Simple plot of measured data
         if plot:
@@ -193,19 +193,23 @@ class DAQTask():
         Export data to a csv file. The path is specified in the config/files.py file.
         The delimiter is by default ';'. The boolean 'transform' converts the data from the decimal point '.' to ','.
         """
-        for i in range(len(measurement_cfg.path)):
-            correct_path = measurement_cfg.path[i]
-            if measurement_cfg.path[i][-2:-1] != "\\":
-                correct_path = correct_path + "\\"
-            
-            # Check if path exists
-            if not os.path.exists(correct_path + 'data'):
-                os.makedirs(correct_path + 'data')
+        export_success = []
+        file_name = "data_" + self.timestamp + ".csv"
+        msg = "The file with name '{}' has been exported. The following information is given: \n\n".format(file_name)
 
-            # Set path with data name
-            nameCSV = correct_path + "data\\data_" + self.timestamp + ".csv"
-            
+        for i in range(len(measurement_cfg.path)):
             try:
+                correct_path = measurement_cfg.path[i]
+                if measurement_cfg.path[i][-2:-1] != "\\":
+                    correct_path = correct_path + "\\"
+                
+                # Check if path exists
+                if not os.path.exists(correct_path + 'data'):
+                    os.makedirs(correct_path + 'data')
+
+                # Set path with data name
+                nameCSV = correct_path + "data\\" + file_name
+            
                 #Write to CSV
                 with open(nameCSV, 'w', newline='') as csvfile:
                     dataWriter = csv.writer(csvfile, delimiter=';', quotechar='|',quoting=csv.QUOTE_NONE)
@@ -226,20 +230,38 @@ class DAQTask():
                         # decimal point: '.'
                         # dataWriter.writerow([self.time_axis[i],self.data[i]])
                     csvfile.close()
+                export_success.append(True)
+                msg = msg + "> {}: success\n".format(correct_path)
             # except FileNotFoundError:
             #     print("Automeasurement: The path in the config/files.py does not exist. Please provide an existing path.")
-            except Exception as e:
+            except (Exception, FileNotFoundError) as e:
+                export_success.append(False)
                 self.error_msg = traceback.format_exc()
-                self.error_msg = self.error_msg + "\nPath: {}".format(correct_path)
                 print("============================")
                 print("Automeasurement - Exception:")
                 print("============================")
                 print(self.error_msg)
                 print("============================")
-                if self.send_email:
-                        # Send an e-mail
-                        error_subject = 'Unexpected Exception during saving data'
-                        self.mail_client.send_error_email(self.error_msg, error_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
+                msg = msg + "> {}: \n\t{}\n".format(correct_path, self.error_msg)
+        if self.send_email:
+            # The file is saved successfully on all locations
+            if False not in export_success:
+                # Saving was successfull everywhere
+                info_subject = 'Saving successfully'
+                info_text = msg
+                self.mail_client.send_info_email(info_text, info_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
+            elif True in export_success:
+                # At least saved in one location
+                warning_subject = 'Saving data not successful everywhere'
+                warning_text = msg
+                self.mail_client.send_warning_email(warning_text, warning_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
+            else:
+                # Saving was not successfull anywhere
+                error_subject = 'Saving not successful anywhere'
+                error_text = msg
+                self.mail_client.send_error_email(error_text, error_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
+
+                
 
 
     
@@ -321,7 +343,7 @@ if __name__ == "__main__":
     # task = DAQTask('cDAQ1/ai0:3')
     # daq = DAQForceTask('cDAQ1Mod1/ai0:1')
     daq = DAQAccelerationTask('cDAQ1Mod1/ai0:3, cDAQ1Mod2/ai0', verbose=True, send_email=True)
-    success = daq.read_data(2000, 5, plot=False, verbose=True, attempts=2, close_when_done=False)
-    # if success:
-    #     daq.export_data()
+    success = daq.read_data(2000, 90, plot=False, verbose=True, attempts=2, close_when_done=False)
+    if success:
+        daq.export_data()
     daq.close()
