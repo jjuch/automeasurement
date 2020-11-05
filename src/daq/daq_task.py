@@ -24,13 +24,13 @@ class DAQTask():
         self.data = None
         self.error_msg = None
         self.send_email = send_email
-        if mail_client is None:
+        self.mail_client = None
+        if mail_client is None and self.send_email:
             try:
                 self.mail_client = setup_mail_client()
             except Exception as e:
                 print('Automeasurement: Could not create a mail client.')
                 # Allows to keep storing the data if the mail client fails
-                self.mail_client = None
                 self.send_email = False
 
     def __exit__(self, type, value, traceback):
@@ -40,9 +40,6 @@ class DAQTask():
         """
         Read data from task with a certain sampling frequency fs and a finite measurement time. Once finished the task is closed. A bool on successful execution is returned. A 'plot' and 'verbose' boolean are provided.
         """
-
-        # Adapt object specific parameters
-        self.verbose = verbose
 
         # Determine time-axis
         number_of_samples_per_channel = fs * measurement_time
@@ -62,12 +59,12 @@ class DAQTask():
                 self.task.register_done_event(self.close_task)
 
             # Print verbose info about measurement
-            if self.verbose:
+            if self.verbose or verbose:
                 print('Automeasurement: start reading data. Attempt: {}/{}'.format(current_attempt, attempts))
                 print('Automeasurement: fs={}Hz, time={}s'.format(fs, measurement_time))
             
             # Remove transient from internal source
-            sleep(2)
+            # sleep(2)
 
             # Testing except structure
             # if current_attempt < attempts:
@@ -80,8 +77,17 @@ class DAQTask():
             # The actual reading of the device
             self.task.start()
             data = self.task.read(number_of_samples_per_channel=number_of_samples_per_channel, timeout=measurement_time * 1.2)
+
+            # Calculate standard deviation of each sensor and transpose for plotting
+            std_dev = []
             if number_of_channels > 1:
                 data = self.transpose_list_of_lists(data)
+                std_dev = np.std(data, axis=0)
+                for i in range(number_of_channels):
+                    std_temp = np.std(data[i])
+            else:
+                std_dev.append(np.std(data))
+            print('std: ', std_dev)
             self.data = data
 
         # DAQ related errors
@@ -123,16 +129,25 @@ class DAQTask():
                 warnings.simplefilter('ignore')
                 self.task.stop()
             if self.send_email:
-                    # Send an e-mail
-                    error_subject = 'Unexpected Exception during reading'
-                    self.mail_client.send_error_email(self.error_msg, error_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
+                # Send an e-mail
+                error_subject = 'Unexpected Exception during reading'
+                self.mail_client.send_error_email(self.error_msg, error_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
             if close_when_done:
                 self.close_task('Measuring error', 'error', None)
             return False
         
-        if self.verbose:
+        if self.verbose or verbose:
             print('Automeasurement: Measurement completed successfully.')
-        
+
+        # Send a report email to indicate successfull completion
+        if self.send_email:
+            # Send an e-mail
+            info_subject = 'Measurement has been completed successfully'
+            info_txt = "The standard deviations of the sensors are: \n"
+            for i in range(number_of_channels):
+                info_txt = info_txt + "Channel {}: {}\n".format(i + 1, std_dev[i])
+            self.mail_client.send_info_mail(info_txt, info_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
+
         # Simple plot of measured data
         if plot:
             plt.figure()
@@ -140,8 +155,6 @@ class DAQTask():
             plt.xlabel('time (s)')
             plt.show()
 
-        # Reset verbose
-        self.verbose = False
         return True
 
     def close_task(self, task_handle, status, callback_data):
@@ -159,9 +172,10 @@ class DAQTask():
         return 0
 
     def close_mail_client(self):
-        if self.verbose:
-            print('Automeasurement: Closing mail client.')
-        self.mail_client.quit_client()
+        if self.mail_client is not None:
+            if self.verbose:
+                print('Automeasurement: Closing mail client.')
+            self.mail_client.quit_client()
 
     def close(self):
         if self.verbose:
@@ -306,8 +320,8 @@ class DAQAccelerationTask(DAQTask):
 if __name__ == "__main__":
     # task = DAQTask('cDAQ1/ai0:3')
     # daq = DAQForceTask('cDAQ1Mod1/ai0:1')
-    daq = DAQAccelerationTask('cDAQ1Mod1/ai0:3', verbose=True, send_email=True)
-    # success = daq.read_data(2000, 5, plot=False, verbose=True, attempts=2)
+    daq = DAQAccelerationTask('cDAQ1Mod1/ai0:3, cDAQ1Mod2/ai0', verbose=True, send_email=True)
+    success = daq.read_data(2000, 5, plot=False, verbose=True, attempts=2, close_when_done=False)
     # if success:
     #     daq.export_data()
-    # daq.close()
+    daq.close()
