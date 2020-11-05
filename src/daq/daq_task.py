@@ -12,7 +12,7 @@ import csv
 
 from config.sensor import IEPE_Force_sensor, Acceleration_sensor
 import config.mail as email_cfg
-import config.files as files_cfg
+import config.measurement as measurement_cfg
 from src.mail import setup_mail_client
 
 class DAQTask():
@@ -20,8 +20,8 @@ class DAQTask():
         self.task = ndm.task.Task()
         self.verbose = False
         self.timestamp = strftime("%Y%m%d_%H%M%S", localtime())
-        self.time_axis = []
-        self.data = []
+        self.time_axis = None
+        self.data = None
         self.error_msg = None
         if mail_client is None:
             self.mail_client = setup_mail_client() 
@@ -152,39 +152,40 @@ class DAQTask():
         Export data to a csv file. The path is specified in the config/files.py file.
         The delimiter is by default ';'. The boolean 'transform' converts the data from the decimal point '.' to ','.
         """
-        correct_path = files_cfg.path
-        if files_cfg.path[-2:-1] != "\\":
-            correct_path = correct_path + "\\"
-        
-        # Check if path exists
-        if not os.path.exists(correct_path + 'data'):
-            os.makedirs(correct_path + 'data')
+        for i in range(len(measurement_cfg.path)):
+            correct_path = measurement_cfg.path[i]
+            if measurement_cfg.path[i][-2:-1] != "\\":
+                correct_path = correct_path + "\\"
+            
+            # Check if path exists
+            if not os.path.exists(correct_path + 'data'):
+                os.makedirs(correct_path + 'data')
 
-        # Set path with data name
-        nameCSV = correct_path + "data\\data_" + self.timestamp + ".csv"
-        
-        try:
-            #Write to CSV
-            with open(nameCSV, 'w', newline='') as csvfile:
-                dataWriter = csv.writer(csvfile, delimiter=';', quotechar='|',quoting=csv.QUOTE_NONE)
+            # Set path with data name
+            nameCSV = correct_path + "data\\data_" + self.timestamp + ".csv"
+            
+            try:
+                #Write to CSV
+                with open(nameCSV, 'w', newline='') as csvfile:
+                    dataWriter = csv.writer(csvfile, delimiter=';', quotechar='|',quoting=csv.QUOTE_NONE)
 
-                for i in range(len(self.time_axis)):
-                    row = []
-                    # change '.' into ','
-                    for j in range(len(self.time_axis[0])):
-                        if transform:
-                            row.append(self._localizeFloats(self.time_axis[i][j])) 
-                            row.append(self._localizeFloats(self.data[i][j]))
-                        else:
-                            row.append(self.time_axis[i][j])
-                            row.append(self.data[i][j])
-                    dataWriter.writerow(row)
+                    for i in range(len(self.time_axis)):
+                        row = []
+                        # change '.' into ','
+                        for j in range(len(self.time_axis[0])):
+                            if transform:
+                                row.append(self._localizeFloats(self.time_axis[i][j])) 
+                                row.append(self._localizeFloats(self.data[i][j]))
+                            else:
+                                row.append(self.time_axis[i][j])
+                                row.append(self.data[i][j])
+                        dataWriter.writerow(row)
 
-                    #decimal point: '.'
-                    #dataWriter.writerow([self.time_axis[i],self.data[i]])
-                csvfile.close()
-        except FileNotFoundError:
-            print("Automeasurement: The path in the config/files.py does not exist. Please provide an existing path.")
+                        #decimal point: '.'
+                        #dataWriter.writerow([self.time_axis[i],self.data[i]])
+                    csvfile.close()
+            except FileNotFoundError:
+                print("Automeasurement: The path in the config/files.py does not exist. Please provide an existing path.")
 
 
     
@@ -240,16 +241,6 @@ if __name__ == "__main__":
     # task = DAQTask('cDAQ1/ai0:3')
     # daq = DAQForceTask('cDAQ1Mod1/ai0:1')
     daq = DAQAccelerationTask('cDAQ1Mod1/ai0:3')
-    # daq.task.start()
-    # plt.figure()
-    # for _ in range(100):
-    #     data = daq.task.read(1500)
-    #     print(data)
-    #     plt.plot(data)
-    #     plt.pause(0.05)
-    # plt.show()
-    # daq.task.stop()
-    # daq.task.start()
     success = daq.read_data(2000, 5, plot=False, verbose=True, attempts=2, email=True)
     if success:
         daq.export_data()

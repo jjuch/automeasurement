@@ -1,5 +1,7 @@
 from nidaqmx.constants import (AccelUnits, AccelSensitivityUnits, AcquisitionType, ExcitationDCorAC, ExcitationSource, ForceIEPESensorSensitivityUnits, ForceUnits, TerminalConfiguration, UsageTypeAI)
 
+channel_names = "cDAQ1Mod1/ai0:3, cDAQ1Mod2/ai0"
+
 # IEPE Force sensor
 IEPE_Force_sensor = {
     'terminal_config' : TerminalConfiguration.PSEUDODIFFERENTIAL,
