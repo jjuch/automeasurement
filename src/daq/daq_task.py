@@ -63,8 +63,6 @@ class DAQTask():
                 print('Automeasurement: start reading data. Attempt: {}/{}'.format(current_attempt, attempts))
                 print('Automeasurement: fs={}Hz, time={}s'.format(fs, measurement_time))
             
-            # Remove transient from internal source
-            # sleep(2)
 
             # Testing except structure
             # if current_attempt < attempts:
@@ -74,8 +72,17 @@ class DAQTask():
             
             # Create new timestamp
             self.timestamp = strftime("%Y%m%d_%H%M%S", localtime())
-            # The actual reading of the device
+
+            # Start device
             self.task.start()
+
+            # Remove transient from IEPE
+            sleep(10)
+
+            # Create new timestamp
+            self.timestamp = strftime("%Y%m%d_%H%M%S", localtime())
+
+            # Read data
             data = self.task.read(number_of_samples_per_channel=number_of_samples_per_channel, timeout=measurement_time * 1.2)
 
             # Calculate standard deviation of each sensor and transpose for plotting
