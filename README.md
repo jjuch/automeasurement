@@ -23,3 +23,10 @@ An automatic measuring and logging protocol
 ```
 5. Change config files
 
+6. Validate the config file by running the `check_config.bat` file
+```
+    >>> check_config.bat
+```
+Check your mail account if all recepients received two mails. The first one indicates that the mail configuration is successfull. The second one indicates that the export paths are ok. A file will be saved at the location. **Remove these files as they do not contain any relevant info.** 
+
+Now, everything is ready to use the automeasurement protocol. You can use the `main.bat` file to do a measurement.
