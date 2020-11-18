@@ -47,7 +47,7 @@ class DAQTask():
         number_of_samples_per_channel = fs * measurement_time
         time_axis = np.linspace(0, measurement_time, number_of_samples_per_channel)
         number_of_channels = self.task.number_of_channels
-        if number_of_channels is not 1:
+        if number_of_channels != 1:
             time_axis = list(itertools.repeat(time_axis, number_of_channels))
             time_axis = self.transpose_list_of_lists(time_axis)
         self.time_axis = time_axis
@@ -248,18 +248,24 @@ class DAQTask():
 
         for i in range(len(paths)):
             try:
-                correct_path = paths[i]
-                if paths[i][-2:-1] != "\\":
-                    correct_path = correct_path + "\\"
+                correct_path = Path(paths[i])
+                # if paths[i][-2:-1] != "\\":
+                #     correct_path = correct_path + "\\"
                 
+                
+                correct_data_path = correct_path / "data"
+                print('Copy to {}'.format(correct_path))
+                print('Data path: {}'.format(correct_data_path))
+
                 # Check if path exists
-                if not os.path.exists(correct_path + 'data'):
-                    os.makedirs(correct_path + 'data')
+                if not os.path.exists(correct_data_path):
+                    os.makedirs(correct_data_path)
                 
                 # Copy file to correct location
-                copy2(temp_file, correct_path + 'data')
+                copy2(temp_file, correct_data_path)
 
                 export_success.append(True)
+                print('Copying successful...')
                 msg = msg + "> {}: success\n".format(correct_path)
 
             except (Exception, FileNotFoundError) as e:
@@ -381,9 +387,8 @@ class DAQAccelerationTask(DAQTask):
 if __name__ == "__main__":
     # task = DAQTask('cDAQ1/ai0:3')
     # daq = DAQForceTask('cDAQ1Mod1/ai0:1')
-    daq = DAQAccelerationTask('cDAQ1Mod1/ai0:3, cDAQ1Mod2/ai0', verbose=True, send_email=False)
-    # success = daq.read_data(2000, 5, plot=False, verbose=True, attempts=2, close_when_done=False)
-    success = True
+    daq = DAQAccelerationTask('cDAQ1Mod1/ai0:3, cDAQ1Mod2/ai0', verbose=True, send_email=True)
+    success = daq.read_data(2000, 5, plot=False, verbose=True, attempts=2, close_when_done=False)
     if success:
         daq.export_data(measurement_cfg.path)
     daq.close()
