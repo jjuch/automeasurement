@@ -29,4 +29,7 @@ An automatic measuring and logging protocol
 ```
 Check your mail account if all recepients received two mails. The first one indicates that the mail configuration is successfull. The second one indicates that the export paths are ok. A file will be saved at the location. **Remove these files as they do not contain any relevant info.** 
 
-Now, everything is ready to use the automeasurement protocol. You can use the `main.bat` file to do a measurement.
+## Run Automeasurement
+Now, everything is ready to use the automeasurement protocol. You can use the `main.bat` file to do a measurement. To have repetitive measurments, the Task Scheduler of windows can be used. 
+
+**Important:** Add the absolute path of the `main.bat` file to the `Start in` field and refer to the main.bat file without path.
