@@ -235,11 +235,11 @@ class DAQTask():
                     # dataWriter.writerow([self.time_axis[i],self.data[i]])
         except (Exception, FileNotFoundError) as e:
             self.error_msg = traceback.format_exc()
-                print("============================")
-                print("Automeasurement - Exception:")
-                print("============================")
-                print(self.error_msg)
-                print("============================")
+            print("============================")
+            print("Automeasurement - Exception:")
+            print("============================")
+            print(self.error_msg)
+            print("============================")
             if self.send_email:
                 error_subject = 'Saving to temp not successful'
                 error_text = self.error_msg
@@ -259,33 +259,9 @@ class DAQTask():
                 # Copy file to correct location
                 copy2(temp_file, correct_path + 'data')
 
-                # # Set path with data name
-                # nameCSV = correct_path + "data\\" + file_name
-            
-                # #Write to CSV
-                # with open(nameCSV, 'w', newline='') as csvfile:
-                #     dataWriter = csv.writer(csvfile, delimiter=';', quotechar='|', quoting=csv.QUOTE_NONE)
-
-                #     if self.time_axis is not None:
-                #         for i in range(len(self.time_axis)):
-                #             row = []
-                #             # change '.' into ','
-                #             for j in range(len(self.time_axis[0])):
-                #                 if transform:
-                #                     row.append(self._localizeFloats(self.time_axis[i][j])) 
-                #                     row.append(self._localizeFloats(self.data[i][j]))
-                #                 else:
-                #                     row.append(self.time_axis[i][j])
-                #                     row.append(self.data[i][j])
-                #             dataWriter.writerow(row)
-
-                #         # decimal point: '.'
-                #         # dataWriter.writerow([self.time_axis[i],self.data[i]])
-                #     csvfile.close()
                 export_success.append(True)
                 msg = msg + "> {}: success\n".format(correct_path)
-            # except FileNotFoundError:
-            #     print("Automeasurement: The path in the config/files.py does not exist. Please provide an existing path.")
+
             except (Exception, FileNotFoundError) as e:
                 export_success.append(False)
                 self.error_msg = traceback.format_exc()
@@ -295,6 +271,19 @@ class DAQTask():
                 print(self.error_msg)
                 print("============================")
                 msg = msg + "> {}: \n\t{}\n".format(correct_path, self.error_msg)
+
+        # Remove data from temp if successfull
+        if True in export_success:
+            try:
+                temp_file.unlink()
+            except (Exception, FileNotFoundError) as e:
+                self.error_msg = traceback.format_exc()
+                print("============================")
+                print("Automeasurement - Exception:")
+                print("============================")
+                print(self.error_msg)
+                print("============================")       
+
         if self.send_email:
             # The file is saved successfully on all locations
             if False not in export_success:
