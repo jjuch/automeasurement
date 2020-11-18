@@ -9,6 +9,8 @@ from time import strftime, localtime, sleep
 import sys, os
 import warnings, traceback
 import csv
+from pathlib import Path
+from shutil import copy2
 
 from config.sensor import IEPE_Force_sensor, Acceleration_sensor
 import config.mail as email_cfg
@@ -204,6 +206,46 @@ class DAQTask():
         file_name = "data_" + self.timestamp + ".csv"
         msg = "The file with name '{}' has been exported. The following information is given: \n\n".format(file_name)
 
+        # Create a temp file and copy to the correct folder
+        temp_path = Path(__file__).parent / "../../../temp"
+        temp_file = temp_path / '{}'.format(file_name)
+        
+
+        # Check if path exists
+        if not os.path.exists(temp_path):
+            os.makedirs(temp_path)
+        try:
+            with temp_file.open('w', newline='') as csvfile:
+                dataWriter = csv.writer(csvfile, delimiter=';', quotechar='|', quoting=csv.QUOTE_NONE)
+
+                if self.time_axis is not None:
+                    for i in range(len(self.time_axis)):
+                        row = []
+                        # change '.' into ','
+                        for j in range(len(self.time_axis[0])):
+                            if transform:
+                                row.append(self._localizeFloats(self.time_axis[i][j])) 
+                                row.append(self._localizeFloats(self.data[i][j]))
+                            else:
+                                row.append(self.time_axis[i][j])
+                                row.append(self.data[i][j])
+                        dataWriter.writerow(row)
+
+                    # decimal point: '.'
+                    # dataWriter.writerow([self.time_axis[i],self.data[i]])
+        except (Exception, FileNotFoundError) as e:
+            self.error_msg = traceback.format_exc()
+                print("============================")
+                print("Automeasurement - Exception:")
+                print("============================")
+                print(self.error_msg)
+                print("============================")
+            if self.send_email:
+                error_subject = 'Saving to temp not successful'
+                error_text = self.error_msg
+                self.mail_client.send_error_email(error_text, error_subject, email_cfg.email_from, email_cfg.email_to, email_cfg.email_cc)
+
+
         for i in range(len(paths)):
             try:
                 correct_path = paths[i]
@@ -213,30 +255,33 @@ class DAQTask():
                 # Check if path exists
                 if not os.path.exists(correct_path + 'data'):
                     os.makedirs(correct_path + 'data')
+                
+                # Copy file to correct location
+                copy2(temp_file, correct_path + 'data')
 
-                # Set path with data name
-                nameCSV = correct_path + "data\\" + file_name
+                # # Set path with data name
+                # nameCSV = correct_path + "data\\" + file_name
             
-                #Write to CSV
-                with open(nameCSV, 'w', newline='') as csvfile:
-                    dataWriter = csv.writer(csvfile, delimiter=';', quotechar='|',quoting=csv.QUOTE_NONE)
+                # #Write to CSV
+                # with open(nameCSV, 'w', newline='') as csvfile:
+                #     dataWriter = csv.writer(csvfile, delimiter=';', quotechar='|', quoting=csv.QUOTE_NONE)
 
-                    if self.time_axis is not None:
-                        for i in range(len(self.time_axis)):
-                            row = []
-                            # change '.' into ','
-                            for j in range(len(self.time_axis[0])):
-                                if transform:
-                                    row.append(self._localizeFloats(self.time_axis[i][j])) 
-                                    row.append(self._localizeFloats(self.data[i][j]))
-                                else:
-                                    row.append(self.time_axis[i][j])
-                                    row.append(self.data[i][j])
-                            dataWriter.writerow(row)
+                #     if self.time_axis is not None:
+                #         for i in range(len(self.time_axis)):
+                #             row = []
+                #             # change '.' into ','
+                #             for j in range(len(self.time_axis[0])):
+                #                 if transform:
+                #                     row.append(self._localizeFloats(self.time_axis[i][j])) 
+                #                     row.append(self._localizeFloats(self.data[i][j]))
+                #                 else:
+                #                     row.append(self.time_axis[i][j])
+                #                     row.append(self.data[i][j])
+                #             dataWriter.writerow(row)
 
-                        # decimal point: '.'
-                        # dataWriter.writerow([self.time_axis[i],self.data[i]])
-                    csvfile.close()
+                #         # decimal point: '.'
+                #         # dataWriter.writerow([self.time_axis[i],self.data[i]])
+                #     csvfile.close()
                 export_success.append(True)
                 msg = msg + "> {}: success\n".format(correct_path)
             # except FileNotFoundError:
@@ -347,8 +392,9 @@ class DAQAccelerationTask(DAQTask):
 if __name__ == "__main__":
     # task = DAQTask('cDAQ1/ai0:3')
     # daq = DAQForceTask('cDAQ1Mod1/ai0:1')
-    daq = DAQAccelerationTask('cDAQ1Mod1/ai0:3, cDAQ1Mod2/ai0', verbose=True, send_email=True)
-    success = daq.read_data(2000, 5, plot=False, verbose=True, attempts=2, close_when_done=False)
+    daq = DAQAccelerationTask('cDAQ1Mod1/ai0:3, cDAQ1Mod2/ai0', verbose=True, send_email=False)
+    # success = daq.read_data(2000, 5, plot=False, verbose=True, attempts=2, close_when_done=False)
+    success = True
     if success:
         daq.export_data(measurement_cfg.path)
     daq.close()
