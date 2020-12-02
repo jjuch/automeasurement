@@ -1,6 +1,7 @@
 # automeasurement
 An automatic measuring and logging protocol
 
+**Note:** *This protocol is developed in the UGent, Dynamical Systems & Control lab*
 
 ## Install (Windows)
 ### Prerequisites
